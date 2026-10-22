@@ -5,17 +5,29 @@
 # the bytecode this makes is the bytecode the app can load. A newer
 # dev-tools release compiles with hetu_script 0.6.x and emits bytecode the
 # app's VM does not accept.
+#
+# The compiler ships as a Dart snapshot, so it only runs on the Dart version
+# it was activated with. `HETU` is overridable for that reason:
+#
+#   make compile HETU="dart ~/.pub-cache/global_packages/hetu_script_dev_tools/bin/cli_tool.dart-3.10.9.snapshot"
+HETU ?= hetu
 
 compile:
-	hetu compile src/plugin.ht build/plugin.out
+	$(HETU) compile src/plugin.ht build/plugin.out
 
-archive:
+archive: compile
 	mkdir -p build/archive; \
 	cp plugin.json build/plugin.out build/archive/; \
-	cd build/archive; \
-	zip -r plugin.zip ./; \
-	cd ../..; \
-	mv build/archive/plugin.zip build/plugin.smplug
+	python3 tool/pack_smplug.py build/archive; \
+	mv build/archive/plugin.smplug build/plugin.smplug
+
+# The archive is only useful if it holds the bytecode: a build that skipped
+# the compile step would otherwise pack a manifest on its own and look fine.
+check:
+	@test -s build/plugin.out || (echo "build/plugin.out is missing" >&2; exit 1)
+	@python3 -c "import sys,zipfile; names=zipfile.ZipFile('build/plugin.smplug').namelist(); sys.exit(0 if 'plugin.out' in names else 1)" || \
+		(echo "build/plugin.smplug has no plugin.out" >&2; exit 1)
+	@echo "build/plugin.smplug holds plugin.json and plugin.out"
 
 # The install URL serves dist/plugin.smplug, so publishing means copying the
 # archive there and tagging the version.
@@ -26,4 +38,4 @@ publish: archive
 clean:
 	rm -rf build
 
-.PHONY: compile archive publish clean
+.PHONY: compile archive check publish clean

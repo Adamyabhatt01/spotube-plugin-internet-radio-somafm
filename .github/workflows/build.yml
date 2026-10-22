@@ -36,7 +36,15 @@ jobs:
         run: dart pub global activate hetu_script_dev_tools 0.1.0+2
 
       - name: Run build
+        run: make
+
+      - name: Archive plugin
         run: make archive
+
+      # An archive without the bytecode installs as a plugin that does
+      # nothing, and the pack step would not complain: verify it.
+      - name: Verify the archive
+        run: make check
 
       - name: Upload plugin archive
         uses: actions/upload-artifact@v4
