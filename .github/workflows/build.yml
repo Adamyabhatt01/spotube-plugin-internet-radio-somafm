@@ -1,0 +1,56 @@
+name: Plugin Build
+on:
+  push:
+    tags:
+      - '*'
+  workflow_dispatch:
+    inputs:
+      version:
+        type: string
+        description: 'Version (x.x.x)'
+        required: true
+        default: 'continuous'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # The Dart version is pinned to the one Spotube's toolchain uses: the
+      # Hetu compiler is shipped as a Dart snapshot, so the SDK version is
+      # part of the build.
+      - name: Setup Dart
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: 3.10.9
+
+      # Pinned to the release that carries hetu_script 0.4.2+1, the version
+      # Spotube's Hetu VM loads. Newer dev-tools releases compile with
+      # hetu_script 0.6.x, whose bytecode the app does not accept.
+      - name: Install the Hetu compiler
+        run: dart pub global activate hetu_script_dev_tools 0.1.0+2
+
+      - name: Run build
+        run: make archive
+
+      - name: Upload plugin archive
+        uses: actions/upload-artifact@v4
+        with:
+          path: build/plugin.smplug
+
+      - name: Upload to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: ncipollo/release-action@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ github.ref_name }}
+          omitBodyDuringUpdate: true
+          omitNameDuringUpdate: true
+          omitPrereleaseDuringUpdate: true
+          allowUpdates: true
+          artifacts: build/plugin.smplug
